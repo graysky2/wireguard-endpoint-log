@@ -12,6 +12,23 @@ Logs every new source endpoint observed for each WireGuard peer public key on Op
 | `interval` | `2` | Poll interval in seconds |
 | `ip_only` | `0` | `1` ignores port changes and logs IP only |
 | `log_file` | unset | Optional copy of the log on persistent storage |
+| `ignore_cidr` | unset | IPv4 range(s) whose endpoints are never logged, repeatable |
+
+`ignore_cidr` takes `a.b.c.d/n` or a bare address (same as `/32`). Each wildcard octet subtracts 8 from the prefix:
+
+| Matches | `ignore_cidr` |
+|---------|---------------|
+| `10.9.10.5` only | `10.9.10.5/32` or `10.9.10.5` |
+| `10.9.10.*` | `10.9.10.0/24` |
+| `10.9.*.*` | `10.9.0.0/16` |
+| `10.*.*.*` | `10.0.0.0/8` |
+
+Use it to drop LAN endpoints, e.g. an iOS on-demand tunnel that still connects over local Wi-Fi:
+```
+	list ignore_cidr '10.9.10.0/24'
+	list ignore_cidr '192.168.1.0/24'
+```
+Host bits are ignored, so `10.9.10.5/24` is the same as `10.9.10.0/24`. Octets and prefixes with leading zeros (`010`) are invalid. Invalid entries are logged to syslog and skipped, and a `/0` logs a warning since it ignores every IPv4 endpoint. IPv6 endpoints are never ignored.
 
 ## Log format
 
