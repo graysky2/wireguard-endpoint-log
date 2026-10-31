@@ -38,6 +38,10 @@ Install the `column` package and query the log with it for a nicer aligned displ
 20261031-05:09:33  iface=wg1  peer=basecamp   endpoint=103.102.36.53:51110    pubkey=8Nf/...m0=
 ```
 
+## Installation
+
+See https://github.com/openwrt/packages/pull/31066
+
 ## Notes
 
 - Changes faster than the poll interval can be missed (A to B to A within one interval).
