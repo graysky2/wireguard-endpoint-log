@@ -1,0 +1,105 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+INTERVAL="${1:-2}"
+IP_ONLY="${2:-0}"
+LOG="$3"
+PREV=/tmp/wireguard-endpoint-log.prev
+CUR=/tmp/wireguard-endpoint-log.cur
+NOMOUNT=/tmp/wireguard-endpoint-log.nomount
+
+case "$INTERVAL" in
+	''|*[!0-9]*|0) INTERVAL=2 ;;
+esac
+
+# Use the router's configured timezone (OpenWrt writes it to /etc/TZ).
+[ -z "$TZ" ] && [ -r /etc/TZ ] && TZ=$(cat /etc/TZ) && export TZ
+
+# Find the longest enabled fstab mount target that contains LOGDIR.
+find_mount() {
+	local enabled target
+	config_get_bool enabled "$1" enabled 1
+	[ "$enabled" = 1 ] || return
+	config_get target "$1" target
+	target=${target%/}
+	[ -n "$target" ] || return
+	case "$LOGDIR/" in
+		"$target"/*) [ ${#target} -gt ${#MNT} ] && MNT=$target ;;
+	esac
+}
+
+case "$LOG" in
+	*/|*//*|*/./*|*/../*|*/.|*/..|[!/]*)
+		logger -t wireguard-endpoint-log -p daemon.err "invalid log_file '$LOG', using syslog only"
+		LOG='' ;;
+esac
+
+MNT=''
+if [ -n "$LOG" ]; then
+	LOGDIR=$(dirname "$LOG")
+	config_load fstab
+	config_foreach find_mount mount
+fi
+rm -f "$NOMOUNT"
+
+# Copy to LOG unless it lives under an fstab mount that is not mounted,
+# so writes never land in the bare mount point on the underlying filesystem.
+log_file() {
+	[ -n "$LOG" ] || return
+	if [ -n "$MNT" ] &&
+		! awk -v m="$MNT" '$2 == m { f = 1 } END { exit !f }' /proc/mounts; then
+		[ -e "$NOMOUNT" ] && return
+		: > "$NOMOUNT"
+		logger -t wireguard-endpoint-log -p daemon.warn "$MNT not mounted, skipping log_file"
+		return
+	fi
+	rm -f "$NOMOUNT"
+	mkdir -p "$LOGDIR"
+	echo "$(date '+%Y%m%d-%H:%M:%S') $*" >> "$LOG"
+}
+
+log() {
+	logger -t wireguard-endpoint-log -p daemon.info "$*"
+	log_file "$*"
+}
+
+command -v wg >/dev/null 2>&1 || { log "error: wg not found, exiting"; exit 1; }
+
+# Keep state across restarts; it only resets when /tmp does (reboot).
+[ -f "$PREV" ] || : > "$PREV"
+log "started interval=${INTERVAL}s ip_only=$IP_ONLY"
+
+match_peer() {
+	local key
+	[ -n "$found" ] && return
+	config_get key "$1" public_key
+	[ "$key" = "$2" ] || return
+	found=1
+	config_get name "$1" description
+}
+
+# peer_name <iface> <pubkey>: description of the matching wireguard_<iface> section
+peer_name() {
+	local found='' name=''
+	config_load network
+	config_foreach match_peer "wireguard_$1" "$2"
+	echo "$name"
+}
+
+while :; do
+	wg show all endpoints 2>/dev/null |
+		awk -v iponly="$IP_ONLY" '
+			$3 == "(none)" { next }
+			{ if (iponly == "1") sub(/:[0-9]+$/, "", $3); print $1, $2, $3 }
+		' | sort -u > "$CUR"
+
+	awk 'FILENAME == ARGV[1] { seen[$0] = 1; next } !($0 in seen)' "$PREV" "$CUR" |
+	while read -r iface pub ep; do
+		name=$(peer_name "$iface" "$pub")
+		log "iface=$iface peer=${name:-unnamed} endpoint=$ep pubkey=$pub"
+	done
+
+	mv "$CUR" "$PREV"
+	sleep "$INTERVAL"
+done
