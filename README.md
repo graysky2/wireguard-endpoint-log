@@ -14,7 +14,6 @@ A peer that suddenly connects from an unfamiliar ISP, a hosting provider or VPN,
 
 Example log:
 ```
-20261031-05:06:02 started interval=2s ip_only=1 asn=1 geoip=1
 20261031-05:09:33 iface=wg1 peer=basecamp City=Kathmandu,BagmatiProvince Country=NP ISP=InternetExchangeNepal ASN=AS17412 endpoint=103.102.36.53 pubkey=8Nf/...m0=
 20261031-07:12:48 iface=wg0 peer=wifephone City=Cottonwood,Arizona Country=US ISP=CABLEONE ASN=AS11492 endpoint=66.164.137.1 pubkey=gDTT...C2U=
 20261031-08:05:19 iface=wg0 peer=daughterphone City=Cottonwood,Arizona Country=US ISP=CABLEONE ASN=AS11492 endpoint=66.164.137.1 pubkey=Hs4k...p8Q=
@@ -28,7 +27,6 @@ Example log:
 With `asn` and `geoip` set to `0`:
 
 ```
-20261031-05:06:02 started interval=2s ip_only=1 asn=0 geoip=0
 20261031-05:09:33 iface=wg1 peer=basecamp endpoint=103.102.36.53 pubkey=8Nf/...m0=
 20261031-07:12:48 iface=wg0 peer=wifephone endpoint=66.164.137.1 pubkey=gDTT...C2U=
 20261031-08:05:19 iface=wg0 peer=daughterphone endpoint=66.164.137.1 pubkey=Hs4k...p8Q=
@@ -69,7 +67,7 @@ Host bits are ignored, so `10.9.10.5/24` is the same as `10.9.10.0/24`. Octets a
 ## Limits
 
 - Changes faster than the poll interval can be missed (A to B to A within one interval).
-- Address changes are logged, not connections: there is no line for connect, disconnect or duration, and returning to an earlier address is logged again. State is kept in `/tmp`, so after a reboot every current endpoint is logged once more.
+- Address changes are logged, not connections: there is no line for connect, disconnect or duration, and returning to an earlier address is logged again. State is reset whenever the service starts or stops, so after a reboot, restart or config change every current endpoint is logged once more.
 - A copied key pair used from the same address as its owner (same home Wi-Fi, same CGNAT gateway), or from an `ignore_cidr` range, produces no line.
 - Mobile carriers use CGNAT, so phone endpoints change often and are shared with many other customers; judge them by `ISP=` and `ASN=`, not the address. Cellular addresses usually geolocate to the carrier's gateway city, which can be hundreds of km away. City data is approximate in general; country and ASN are more reliable.
 - WireGuard only updates a peer's endpoint after an authenticated packet, so a logged address came from someone holding that key pair and cannot be spoofed.
@@ -93,7 +91,7 @@ Requires `uclient-fetch`, `jsonfilter`, `ca-bundle` and a `libustream-*` SSL lib
 
 ## Persistent logs
 
-Syslog is RAM and is cleared on reboot, so the audit trail is lost unless `log_file` is set. Optionally point `log_file` at persistent storage. If it is under an `/etc/config/fstab` mount, lines are only written while that mount is present.
+Syslog is RAM and is cleared on reboot, so the audit trail is lost unless `log_file` is set. Optionally point `log_file` at persistent storage. It only gets endpoint lines; startup, warnings and errors go to syslog only. If it is under an `/etc/config/fstab` mount, lines are only written while that mount is present.
 
 ## Pro tip: aligned output for easier reading
 

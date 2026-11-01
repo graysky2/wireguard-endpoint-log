@@ -38,6 +38,10 @@ start_service() {
 	validate_section main start_instance
 }
 
+service_stopped() {
+	rm -f /tmp/wireguard-endpoint-log.prev /tmp/wireguard-endpoint-log.cur
+}
+
 service_triggers() {
 	procd_add_reload_trigger wireguard-endpoint-log fstab
 	procd_add_validation validate_section

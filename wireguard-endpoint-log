@@ -100,7 +100,7 @@ for c in "$@"; do
 	fi
 done
 
-command -v wg >/dev/null 2>&1 || { log "error: wg not found, exiting"; exit 1; }
+command -v wg >/dev/null 2>&1 || { logger -t wireguard-endpoint-log -p daemon.err "wg not found, exiting"; exit 1; }
 
 if [ "$ASN" = 1 ] || [ "$GEOIP" = 1 ]; then
 	for t in uclient-fetch jsonfilter; do
@@ -112,11 +112,11 @@ if [ "$ASN" = 1 ] || [ "$GEOIP" = 1 ]; then
 	done
 fi
 
-# Keep state across restarts; it only resets when /tmp does (reboot).
-[ -f "$PREV" ] || : > "$PREV"
-# ip_only used to keep IPv6 brackets; drop them so upgraded state still matches
-[ "$IP_ONLY" = 1 ] && sed -i 's/ \[\([^]]*\)\]$/ \1/' "$PREV"
-log "started interval=${INTERVAL}s ip_only=$IP_ONLY asn=$ASN geoip=$GEOIP${IGNORE:+ ignore=$IGNORE}"
+# Start from empty state so every current endpoint is logged once per start,
+# including procd restarts (reload, respawn) that skip the init stop hook.
+rm -f "$CUR"
+: > "$PREV"
+logger -t wireguard-endpoint-log -p daemon.info "started interval=${INTERVAL}s ip_only=$IP_ONLY asn=$ASN geoip=$GEOIP${IGNORE:+ ignore=$IGNORE}"
 
 match_peer() {
 	local key
