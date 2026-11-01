@@ -9,7 +9,9 @@ validate_section() {
 	uci_load_validate wireguard-endpoint-log main "$1" "$2" \
 		'enabled:bool:1' \
 		'interval:and(uinteger,range(1,86400)):2' \
-		'ip_only:bool:0' \
+		'ip_only:bool:1' \
+		'asn:bool:1' \
+		'geoip:bool:1' \
 		'log_file:string' \
 		'ignore_cidr:list(string)'
 }
@@ -24,7 +26,7 @@ start_instance() {
 
 	procd_open_instance
 	set -f
-	procd_set_param command /usr/sbin/wireguard-endpoint-log "$interval" "$ip_only" "$log_file" $ignore_cidr
+	procd_set_param command /usr/sbin/wireguard-endpoint-log "$interval" "$ip_only" "$log_file" "$asn" "$geoip" $ignore_cidr
 	set +f
 	[ -n "$log_file" ] && procd_set_param file /etc/config/fstab
 	procd_set_param stderr 1
